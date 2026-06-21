@@ -1,8 +1,6 @@
 import React from "react";
 
 export const StatusBadge = ({ status = "Available" }: { status?: string }) => {
-  // Memastikan huruf pertama selalu kapital agar cocok dengan objek cfg
-  // Contoh: "pending" -> "Pending", "AVAILABLE" -> "Available"
   const safeStatus = status ? status.charAt(0).toUpperCase() + status.slice(1).toLowerCase() : "Available";
 
   const cfg: Record<string, string> = {
