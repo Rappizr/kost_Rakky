@@ -1,3 +1,5 @@
+"use client"; // Pastikan ini ada jika menggunakan Next.js App Router
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   Home,
@@ -18,64 +20,15 @@ import {
   Menu,
   X,
   MessageSquarePlus,
-  Check              
+  Check
 } from "lucide-react";
 import { Room } from "../types";
-import { ROOMS, formatRupiah } from "../mockData";
+import { formatRupiah } from "../mockData"; // Biarkan formatRupiah, tapi hapus ROOMS
 import { StatusBadge } from "./StatusBadge";
 import RoomDetail from "./RoomDetail";
 
-const INITIAL_REVIEWS = [
-  {
-    name: "Budi Santoso",
-    role: "Karyawan Swasta",
-    text: "Kostnya sangat bersih, tenang, dan fasilitasnya lengkap. Wi-Fi kencang sangat mendukung untuk saya yang sering WFH.",
-    rating: 5,
-    roomTag: "101" 
-  },
-  {
-    name: "Nisa Kirana",
-    role: "Mahasiswi",
-    text: "Lokasinya strategis banget, gampang cari makan dan dekat kampus. Kamar mandinya bersih dan parkirannya luas.",
-    rating: 5,
-    roomTag: "202"
-  },
-  {
-    name: "Ahmad Rizal",
-    role: "Pekerja Lapangan",
-    text: "Aman banget karena ada CCTV dan pagar selalu dikunci. Sirkulasi udara di dalam kamar juga sangat bagus jadi nggak kerasa sumpek.",
-    rating: 4,
-    roomTag: "105"
-  },
-  {
-    name: "Siti Aminah",
-    role: "Karyawan Swasta",
-    text: "Harga sewa sangat sepadan dengan fasilitas yang didapatkan. Dapur bersamanya selalu terjaga kebersihannya.",
-    rating: 5,
-    roomTag: "201"
-  },
-  {
-    name: "Reza Pratama",
-    role: "Mahasiswa",
-    text: "Penjaga kos sangat responsif kalau ada keluhan air atau listrik. Parkiran motor lega, nggak perlu desak-desakan kalau pulang malam.",
-    rating: 5,
-    roomTag: "103"
-  },
-  {
-    name: "Maya Indah",
-    role: "Freelancer",
-    text: "Suasananya sangat tenang, cocok banget buat yang butuh fokus nugas atau kerja dari kos. Air PDAM juga lancar jaya.",
-    rating: 4,
-    roomTag: "205"
-  },
-  {
-    name: "Dimas Anggara",
-    role: "Karyawan Swasta",
-    text: "Kamar sudah full furnished, bener-bener tinggal bawa koper aja pas pindahan. Kasurnya empuk dan AC dingin merata.",
-    rating: 5,
-    roomTag: "102"
-  }
-];
+// 1. IMPORT SUPABASE CLIENT-MU
+import { supabase } from "../../supabaseClient"; // Sesuaikan path ini dengan lokasi file supabase-mu
 
 interface UserPortalProps {
   onSwitchRole: () => void;
@@ -84,48 +37,97 @@ interface UserPortalProps {
 export default function UserPortal({ onSwitchRole }: UserPortalProps) {
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [search, setSearch] = useState({ price: "", type: "" });
-  const [filtered, setFiltered] = useState<Room[]>(ROOMS);
+  
+  // 2. STATE UNTUK DATA DINAMIS DARI SUPABASE
+  const [allRooms, setAllRooms] = useState<Room[]>([]);
+  const [filtered, setFiltered] = useState<Room[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]); 
+  
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const [reviews, setReviews] = useState(INITIAL_REVIEWS);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewForm, setReviewForm] = useState({ name: "", roomTag: "", rating: 5, text: "" });
 
-  // REF UNTUK AUTO-SCROLL
   const reviewScrollRef = useRef<HTMLDivElement>(null);
 
+  // 3. FETCH DATA DARI SUPABASE SAAT HALAMAN DIMUAT
+  useEffect(() => {
+    const fetchData = async () => {
+      // Fetch Kamar
+      const { data: roomsData, error: roomsError } = await supabase
+        .from('rooms')
+        .select('*')
+        .order('number', { ascending: true });
+
+      if (roomsData && !roomsError) {
+        // Sesuaikan nama kolom DB dengan interface UI
+        const formattedRooms = roomsData.map((room: any) => ({
+          id: room.id,
+          number: room.number,
+          type: room.type,
+          price: room.price,
+          status: room.status,
+          image: room.image_url,    // Mapping dari Supabase
+          rating: room.rating,
+          size: room.size,
+          floor: room.floor,
+          desc: room.description    // Mapping dari Supabase
+        }));
+        setAllRooms(formattedRooms);
+        setFiltered(formattedRooms);
+      }
+
+      // Fetch Ulasan
+      const { data: reviewsData, error: reviewsError } = await supabase
+        .from('reviews')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (reviewsData && !reviewsError) {
+        // Sesuaikan nama kolom DB dengan interface UI
+        const formattedReviews = reviewsData.map((rev: any) => ({
+          name: rev.reviewer_name,  // Mapping dari Supabase
+          role: rev.role || "Penghuni",
+          text: rev.comment,        // Mapping dari Supabase
+          rating: rev.rating,
+          roomTag: rev.room_number  // Mapping dari Supabase
+        }));
+        setReviews(formattedReviews);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // SCROLL EVENT
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
-
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // FUNGSI AUTO SCROLL ULASAN SETIAP 3.5 DETIK
+  // AUTO SCROLL ULASAN
   useEffect(() => {
     const interval = setInterval(() => {
       if (reviewScrollRef.current) {
         const { scrollLeft, scrollWidth, clientWidth } = reviewScrollRef.current;
-        
-        // Jika sudah mentok di kanan, kembalikan ke awal (kiri)
         if (scrollLeft + clientWidth >= scrollWidth - 10) {
           reviewScrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
         } else {
-          // Geser ke kanan sebesar 350px (sekitar 1 lebar kartu)
           reviewScrollRef.current.scrollBy({ left: 350, behavior: 'smooth' });
         }
       }
-    }, 3500); // 3500 milidetik = 3,5 detik
-
-    return () => clearInterval(interval); // Bersihkan interval saat pindah halaman
+    }, 3500);
+    return () => clearInterval(interval);
   }, []);
 
+  // 4. FILTERING MENGGUNAKAN STATE allRooms, BUKAN ROOMS (MOCK DATA)
   useEffect(() => {
     setFiltered(
-      ROOMS.filter((r: Room) => {
+      allRooms.filter((r: Room) => {
         const matchPrice = !search.price || r.price <= parseInt(search.price);
         const matchType =
           !search.type ||
@@ -133,12 +135,11 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
         return matchPrice && matchType;
       })
     );
-  }, [search]);
+  }, [search, allRooms]);
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
     setIsMobileMenuOpen(false); 
-    
     const element = document.getElementById(targetId);
     if (element) {
       const y = element.getBoundingClientRect().top + window.scrollY - 80;
@@ -146,20 +147,39 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
     }
   };
 
-  const handleReviewSubmit = () => {
+  // 5. KIRIM ULASAN KE SUPABASE
+  const handleReviewSubmit = async () => {
     if (!reviewForm.name || !reviewForm.roomTag || !reviewForm.text) return;
     
-    const newReview = {
-      name: reviewForm.name,
-      role: "Penghuni Terverifikasi",
-      text: reviewForm.text,
-      rating: reviewForm.rating,
-      roomTag: reviewForm.roomTag
-    };
+    // Insert ke tabel reviews di Supabase
+    const { error } = await supabase
+      .from('reviews')
+      .insert([
+        {
+          reviewer_name: reviewForm.name,
+          room_number: reviewForm.roomTag,
+          comment: reviewForm.text,
+          rating: reviewForm.rating,
+          role: "Penghuni Terverifikasi"
+        }
+      ]);
 
-    setReviews([newReview, ...reviews]);
-    setShowReviewModal(false);
-    setReviewForm({ name: "", roomTag: "", rating: 5, text: "" }); 
+    if (error) {
+      console.error("Gagal mengirim ulasan:", error.message);
+      alert("Gagal mengirim ulasan, silakan coba lagi.");
+    } else {
+      // Jika berhasil, tambahkan ke state lokal agar langsung muncul tanpa refresh
+      const newReview = {
+        name: reviewForm.name,
+        role: "Penghuni Terverifikasi",
+        text: reviewForm.text,
+        rating: reviewForm.rating,
+        roomTag: reviewForm.roomTag
+      };
+      setReviews([newReview, ...reviews]);
+      setShowReviewModal(false);
+      setReviewForm({ name: "", roomTag: "", rating: 5, text: "" }); 
+    }
   };
 
   if (activeRoom)
@@ -368,7 +388,7 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
               >
                 <div className="relative overflow-hidden aspect-[4/3] m-1 md:m-2 rounded-lg md:rounded-[1.5rem]">
                   <img
-                    src={room.image}
+                    src={room.image || "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&auto=format"} // fallback image if db is empty
                     alt={room.type}
                     className="w-full h-full object-cover transition-transform duration-700 md:group-hover:scale-105"
                   />
@@ -475,7 +495,6 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
             </button>
           </div>
 
-          {/* Container Horizontal Scroll untuk Ulasan (DITAMBAHKAN REF UNTUK AUTO SCROLL) */}
           <div 
             ref={reviewScrollRef}
             className="flex overflow-x-auto gap-4 md:gap-8 pb-8 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
@@ -497,7 +516,7 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
                 <p className="text-slate-600 text-xs md:text-sm leading-relaxed font-light mb-6 flex-1 italic">"{r.text}"</p>
                 <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-auto">
                   <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#0D6E6E]/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-[#0D6E6E] font-bold text-xs md:text-sm">{r.name[0]}</span>
+                    <span className="text-[#0D6E6E] font-bold text-xs md:text-sm">{r.name ? r.name[0] : "A"}</span>
                   </div>
                   <div className="flex flex-col">
                     <p className="text-slate-800 font-bold text-[10px] md:text-sm">{r.name}</p>
@@ -506,6 +525,11 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
                 </div>
               </div>
             ))}
+            
+            {/* Tampilkan pesan jika ulasan kosong di DB */}
+            {reviews.length === 0 && (
+              <p className="text-slate-400 italic text-sm py-10 w-full text-center">Belum ada ulasan untuk ditampilkan.</p>
+            )}
           </div>
           
         </div>
@@ -690,7 +714,7 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
         </div>
       </footer>
 
-{/* MODAL FORM TULIS ULASAN (MODERN UI) */}
+      {/* MODAL FORM TULIS ULASAN (MODERN UI) */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6" onClick={(e) => e.target === e.currentTarget && setShowReviewModal(false)}>
           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
@@ -711,7 +735,7 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
               <button onClick={() => setShowReviewModal(false)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors relative z-10"><X size={20} /></button>
             </div>
             
-            {/* BODY MODAL (Bisa di-scroll jika layar HP kecil) */}
+            {/* BODY MODAL */}
             <div className="p-5 sm:p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -726,7 +750,7 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
                   </div>
                 </div>
 
-                {/* Pilih Kamar */}
+                {/* 6. GANTI DATA DROPDOWN KAMAR DENGAN allRooms */}
                 <div>
                   <label className="block text-[10px] font-bold text-slate-700 mb-2 uppercase tracking-wider">Kamar Ditempati <span className="text-rose-500">*</span></label>
                   <div className="relative">
@@ -735,7 +759,7 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
                     </div>
                     <select className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0D6E6E]/20 focus:border-[#0D6E6E] transition-all appearance-none" value={reviewForm.roomTag} onChange={(e) => setReviewForm({...reviewForm, roomTag: e.target.value})}>
                       <option value="" disabled>-- Pilih Kamar --</option>
-                      {ROOMS.map(r => (
+                      {allRooms.map(r => (
                         <option key={r.id} value={r.number}>Kamar {r.number} ({r.type})</option>
                       ))}
                     </select>
@@ -775,7 +799,6 @@ export default function UserPortal({ onSwitchRole }: UserPortalProps) {
             <div className="p-5 sm:p-6 border-t border-slate-100 bg-slate-50 flex gap-3 mt-auto rounded-b-[2rem]">
               <button onClick={() => setShowReviewModal(false)} className="flex-1 py-3.5 text-slate-600 font-bold text-sm bg-white border border-slate-200 rounded-xl active:bg-slate-100 md:hover:bg-slate-50 transition-colors shadow-sm">Batal</button>
               
-              {/* Tombol otomatis mati (disabled) abu-abu jika belum diisi lengkap */}
               <button 
                 onClick={handleReviewSubmit} 
                 className={`flex-1 py-3.5 font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${

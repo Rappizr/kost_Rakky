@@ -26,10 +26,19 @@ interface RoomDetailProps {
 }
 
 export default function RoomDetail({ room, onBack }: RoomDetailProps) {
+  // Pengaman: memastikan harga tidak error/NaN jika di database kosong
+  const safePrice = room.price || 0;
+  
+  // Pengaman: memastikan status huruf depannya kapital (menghindari error UI jika di DB ditulis huruf kecil)
+  const safeStatus = room.status ? room.status.charAt(0).toUpperCase() + room.status.slice(1).toLowerCase() : "Tersedia";
+
   const waText = encodeURIComponent(
-    `Halo, saya tertarik dengan Kamar ${room.number} (${room.type}) dengan harga Rp ${room.price.toLocaleString("id-ID")}/bulan.`
+    `Halo, saya tertarik dengan Kamar ${room.number} (${room.type}) dengan harga Rp ${safePrice.toLocaleString("id-ID")}/bulan.`
   );
   const waUrl = `https://wa.me/628883199088?text=${waText}`;
+
+  // Pengaman: Foto default jika di Supabase 'image_url' kosong
+  const safeImage = room.image || "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=600&auto=format";
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans selection:bg-[#0D6E6E]/20 selection:text-[#0D6E6E] pb-24 lg:pb-0">
@@ -59,7 +68,7 @@ export default function RoomDetail({ room, onBack }: RoomDetailProps) {
             {/* GRID GAMBAR */}
             <section className="grid grid-cols-2 gap-2 lg:gap-3">
               <div className="col-span-2 rounded-2xl lg:rounded-3xl overflow-hidden h-48 sm:h-64 lg:h-80 shadow-sm">
-                <img src={room.image} alt="Kamar Utama" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
+                <img src={safeImage} alt="Kamar Utama" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
               </div>
               {[1, 2].map(i => (
                 <div key={i} className="bg-slate-200 rounded-xl lg:rounded-2xl h-24 sm:h-32 lg:h-40 overflow-hidden shadow-sm">
@@ -93,7 +102,7 @@ export default function RoomDetail({ room, onBack }: RoomDetailProps) {
               </p>
             </section>
 
-            {/* SPESIFIKASI KHUSUS MOBILE (Muncul di HP saja, di Desktop ikut Sidebar) */}
+            {/* SPESIFIKASI KHUSUS MOBILE */}
             <section className="lg:hidden bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
               <h2 className="font-bold text-slate-800 text-lg mb-4">Spesifikasi Kamar</h2>
               
@@ -102,7 +111,7 @@ export default function RoomDetail({ room, onBack }: RoomDetailProps) {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </div>
-                <span className="text-emerald-700 text-xs font-bold uppercase tracking-wide">{room.status}</span>
+                <span className="text-emerald-700 text-xs font-bold uppercase tracking-wide">{safeStatus}</span>
               </div>
 
               <div className="space-y-3 text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -151,13 +160,13 @@ export default function RoomDetail({ room, onBack }: RoomDetailProps) {
 
           </div>
 
-          {/* SIDEBAR DESKTOP (Sembunyi di Mobile, Muncul di Layar Besar) */}
+          {/* SIDEBAR DESKTOP */}
           <aside className="hidden lg:block w-[35%] relative">
             <div className="sticky top-24 bg-white rounded-3xl p-7 border border-slate-100 shadow-xl shadow-slate-200/40 space-y-6">
               <div>
                 <p className="text-slate-500 font-medium text-sm uppercase tracking-wider mb-1">Harga Sewa</p>
                 <div className="flex items-baseline gap-2">
-                  <h3 className="text-[#0D6E6E] font-extrabold text-4xl tracking-tight leading-none">{formatRupiah(room.price).replace(",00", "")}</h3>
+                  <h3 className="text-[#0D6E6E] font-extrabold text-4xl tracking-tight leading-none">{formatRupiah(safePrice).replace(",00", "")}</h3>
                   <span className="text-slate-400 font-medium text-sm">/bln</span>
                 </div>
               </div>
@@ -167,7 +176,7 @@ export default function RoomDetail({ room, onBack }: RoomDetailProps) {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                 </div>
-                <span className="text-emerald-700 text-sm font-semibold uppercase">{room.status}</span>
+                <span className="text-emerald-700 text-sm font-semibold uppercase">{safeStatus}</span>
               </div>
 
               <div className="space-y-4 text-sm text-slate-600 bg-slate-50 p-5 rounded-2xl border border-slate-100">
@@ -206,12 +215,12 @@ export default function RoomDetail({ room, onBack }: RoomDetailProps) {
         </div>
       </main>
 
-      {/* BOTTOM BAR KHUSUS MOBILE (Melayang di bawah layar) */}
+      {/* BOTTOM BAR KHUSUS MOBILE */}
       <div className="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 px-5 py-3.5 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] flex items-center justify-between">
         <div>
           <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-0.5">Harga Sewa</p>
           <div className="flex items-baseline gap-1">
-            <h3 className="text-[#0D6E6E] font-extrabold text-xl leading-none">{formatRupiah(room.price).replace(",00", "")}</h3>
+            <h3 className="text-[#0D6E6E] font-extrabold text-xl leading-none">{formatRupiah(safePrice).replace(",00", "")}</h3>
             <span className="text-slate-400 font-medium text-[10px]">/bln</span>
           </div>
         </div>

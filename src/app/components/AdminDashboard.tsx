@@ -1,10 +1,13 @@
+"use client";
+
 import React, { useState, useEffect, useRef } from "react";
 import { LayoutDashboard, DoorOpen, Users, LogOut, Menu, Bell, Eye, TrendingUp, Clock, MessageCircle, CreditCard, Activity, Calendar, AlertCircle, Plus, Pencil, Trash2, X, Cloud, Check } from "lucide-react";
 import { Room, Tenant, RoomFormState } from "../types";
-import { ROOMS, TENANTS, ACTIVITY_LOG, formatRupiah } from "../mockData";
+import { ACTIVITY_LOG, formatRupiah } from "../mockData"; // ROOMS dan TENANTS dihapus
 import { StatusBadge } from "./StatusBadge";
 
-// Pastikan komponen DashboardOverview, RoomManagement, dan TenantManagement sudah Anda deklarasikan di atas atau diimport
+// IMPORT SUPABASE CLIENT
+import { supabase } from "../../supabaseClient";
 
 interface AdminDashboardProps {
   onSwitchRole: () => void;
@@ -12,11 +15,8 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
   const [page, setPage] = useState("Ringkasan");
-  
-  // State sidebarOpen diatur default false agar tertutup di Mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Menyesuaikan state sidebar otomatis berdasarkan ukuran layar saat pertama diload
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) {
@@ -39,7 +39,6 @@ export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
   return (
     <div className="min-h-screen bg-slate-50 font-sans flex relative overflow-hidden">
       
-      {/* OVERLAY GELAP UNTUK MOBILE (Muncul saat sidebar terbuka) */}
       {sidebarOpen && (
         <div 
           className="md:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 transition-opacity"
@@ -47,12 +46,9 @@ export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
         />
       )}
 
-      {/* SIDEBAR RESPONSIVE */}
-      {/* Di Mobile: fixed overlay (slide dari kiri). Di Desktop: relative flex-item */}
       <aside className={`fixed md:relative z-50 inset-y-0 left-0 bg-[#0D6E6E] text-white flex flex-col transition-all duration-300 h-screen overflow-hidden shadow-2xl md:shadow-none
         ${sidebarOpen ? "translate-x-0 w-64 md:w-60" : "-translate-x-full md:translate-x-0 md:w-16"}
       `}>
-        {/* Header Sidebar */}
         <div className="p-4 border-b border-white/10 flex items-center gap-3 h-16">
           <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <DoorOpen size={16} className="text-white" />
@@ -63,14 +59,12 @@ export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
           </span>
         </div>
         
-        {/* Navigasi Sidebar */}
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(({ label, icon: Icon }) => (
             <button
               key={label}
               onClick={() => {
                 setPage(label);
-                // Tutup otomatis sidebar jika di layar HP setelah memilih menu
                 if (window.innerWidth < 768) setSidebarOpen(false); 
               }}
               className={`w-full flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
@@ -85,7 +79,6 @@ export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
           ))}
         </nav>
         
-        {/* Tombol Logout */}
         <div className="p-3 border-t border-white/10">
           <button
             onClick={onSwitchRole}
@@ -99,10 +92,7 @@ export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        
-        {/* TOP NAVBAR */}
         <header className="bg-white border-b border-slate-100 h-16 flex items-center justify-between px-4 md:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-3 md:gap-4">
             <button 
@@ -128,13 +118,11 @@ export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
           </div>
         </header>
 
-        {/* PAGE CONTENT */}
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden overflow-y-auto">
           {page === "Ringkasan" && <DashboardOverview />}
           {page === "Kamar" && <RoomManagement />}
           {page === "Penghuni" && <TenantManagement />}
         </main>
-        
       </div>
     </div>
   );
@@ -142,17 +130,30 @@ export default function AdminDashboard({ onSwitchRole }: AdminDashboardProps) {
 
 // ─── SUB-VIEW: OVERVIEW ───────────────────────────────────────────────────────
 function DashboardOverview() {
-  const available = ROOMS.filter(r => r.status === "Available").length;
-  
+  const [stats, setStats] = useState({ available: 0, totalRooms: 0, totalTenants: 0 });
+
+  // Tarik jumlah kamar dan penghuni dari Supabase untuk Ringkasan
+  useEffect(() => {
+    const fetchStats = async () => {
+      const { data: roomsData } = await supabase.from('rooms').select('status');
+      const { data: tenantsData } = await supabase.from('tenants').select('id');
+      
+      if (roomsData) {
+        const availableCount = roomsData.filter(r => r.status.toLowerCase() === 'available').length;
+        setStats(prev => ({ ...prev, available: availableCount, totalRooms: roomsData.length }));
+      }
+      if (tenantsData) {
+        setStats(prev => ({ ...prev, totalTenants: tenantsData.length }));
+      }
+    };
+    fetchStats();
+  }, []);
+
   return (
     <div className="space-y-4 md:space-y-6">
-      
-      {/* DIPAKSA 3 KOLOM DI SEMUA LAYAR */}
       <div className="grid grid-cols-3 gap-2 md:gap-5">
         
-        {/* KARTU 1: Kunjungan */}
         <div className="bg-white rounded-xl md:rounded-2xl p-2.5 md:p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
-          {/* Ubah flex-col menjadi flex-row agar sejajar kiri-kanan */}
           <div className="flex flex-row items-start justify-between mb-2 md:mb-4 gap-1">
             <div className="w-6 h-6 md:w-10 md:h-10 bg-blue-50 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0">
               <Eye size={12} className="text-blue-500 md:w-5 md:h-5" />
@@ -168,46 +169,40 @@ function DashboardOverview() {
           </div>
         </div>
 
-        {/* KARTU 2: Penghuni */}
         <div className="bg-white rounded-xl md:rounded-2xl p-2.5 md:p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex flex-row items-start justify-between mb-2 md:mb-4 gap-1">
             <div className="w-6 h-6 md:w-10 md:h-10 bg-purple-50 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0">
               <Users size={12} className="text-purple-500 md:w-5 md:h-5" />
             </div>
-            <div className="flex items-center gap-0.5 md:gap-1 bg-emerald-50 text-emerald-600 text-[6px] sm:text-[8px] md:text-xs font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded md:rounded-md whitespace-nowrap">
-              <TrendingUp size={8} className="md:w-[11px] md:h-[11px]" /> +3 org
-            </div>
           </div>
           <div>
-            <p className="text-sm sm:text-base md:text-3xl font-extrabold text-slate-800 mb-0.5">{TENANTS.length}</p>
+            <p className="text-sm sm:text-base md:text-3xl font-extrabold text-slate-800 mb-0.5">{stats.totalTenants}</p>
             <p className="text-slate-500 text-[7px] sm:text-[9px] md:text-sm font-medium leading-tight truncate">Penghuni Aktif</p>
             <p className="text-slate-400 text-[6px] md:text-xs mt-0.5 md:mt-1 hidden sm:block">Sedang menetap</p>
           </div>
         </div>
 
-        {/* KARTU 3: Ketersediaan */}
         <div className="bg-white rounded-xl md:rounded-2xl p-2.5 md:p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="flex flex-row items-start justify-between mb-2 md:mb-4 gap-1">
             <div className="w-6 h-6 md:w-10 md:h-10 bg-teal-50 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0">
               <DoorOpen size={12} className="text-[#0D6E6E] md:w-5 md:h-5" />
             </div>
             <span className="text-slate-500 text-[6px] sm:text-[8px] md:text-xs font-medium whitespace-nowrap text-right">
-              {available}/{ROOMS.length} kmr
+              {stats.available}/{stats.totalRooms} kmr
             </span>
           </div>
           <div>
             <p className="text-sm sm:text-base md:text-3xl font-extrabold text-slate-800 mb-0.5 flex items-baseline gap-1">
-              {available} <span className="text-[7px] md:text-lg text-slate-400 font-semibold">Sisa</span>
+              {stats.available} <span className="text-[7px] md:text-lg text-slate-400 font-semibold">Sisa</span>
             </p>
             <p className="text-slate-500 text-[7px] sm:text-[9px] md:text-sm font-medium mb-1.5 md:mb-3 leading-tight truncate">Ketersediaan</p>
             <div className="bg-slate-100 rounded-full h-1 md:h-2">
-              <div className="bg-[#0D6E6E] h-1 md:h-2 rounded-full transition-all" style={{ width: `${(available / ROOMS.length) * 100}%` }} />
+              <div className="bg-[#0D6E6E] h-1 md:h-2 rounded-full transition-all" style={{ width: `${stats.totalRooms > 0 ? (stats.available / stats.totalRooms) * 100 : 0}%` }} />
             </div>
           </div>
         </div>
       </div>
 
-      {/* LOG AKTIVITAS */}
       <div className="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-4 py-3 md:px-6 md:py-4 border-b border-slate-100 flex items-center justify-between">
           <h2 className="font-bold text-slate-800 text-xs sm:text-sm md:text-base">Aktivitas Terbaru</h2>
@@ -240,35 +235,108 @@ function DashboardOverview() {
 
 // ─── SUB-VIEW: ROOM MANAGEMENT ───────────────────────────────────────────────
 function RoomManagement() {
-  const [rooms, setRooms] = useState<Room[]>(ROOMS);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<RoomFormState>({ number: "", type: "", price: "", facilities: [], image: null });
   const [dragging, setDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const facilitiesList = ["AC", "Kamar Mandi Dalam", "Lemari Pakaian", "Meja Kerja", "Wi-Fi", "Pemanas Air", "Balkon", "Akses Dapur"];
+
+  const fetchRooms = async () => {
+    const { data, error } = await supabase.from('rooms').select('*').order('number', { ascending: true });
+    if (data) {
+      setRooms(data.map((r: any) => ({
+        id: r.id, number: r.number, type: r.type, price: r.price, status: r.status,
+        image: r.image_url, rating: r.rating, size: r.size, floor: r.floor, desc: r.description
+      })));
+    }
+  };
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
 
   const toggleFacility = (f: string) => setForm(p => ({
     ...p,
     facilities: p.facilities.includes(f) ? p.facilities.filter(x => x !== f) : [...p.facilities, f]
   }));
 
-  const handleSave = () => {
-    if (!form.number || !form.type || !form.price) return;
-    setRooms(r => [...r, {
-      id: r.length + 1, number: form.number, type: form.type,
-      price: parseInt(form.price), status: "Available",
-      image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=600&auto=format",
-      rating: 4.5, size: "15 m²", floor: 1, desc: "Kamar baru ditambahkan oleh admin."
+  // FUNGSI BARU: Format angka jadi ada titiknya tiap ngetik
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Buang semua karakter selain angka
+    const rawValue = e.target.value.replace(/\D/g, "");
+    // Kasih titik setiap 3 digit
+    const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    setForm(p => ({ ...p, price: formatted }));
+  };
+
+  const handleSave = async () => {
+    if (!form.number || !form.type || !form.price) {
+      alert("Mohon lengkapi Nomor, Harga, dan Tipe Kamar.");
+      return;
+    }
+
+    setIsUploading(true);
+    let imageUrl = "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=600&auto=format"; 
+
+    if (form.image) {
+      const fileExt = form.image.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `room-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('rooms') 
+        .upload(filePath, form.image);
+
+      if (uploadError) {
+        alert("Gagal mengunggah foto: " + uploadError.message);
+        setIsUploading(false);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('rooms')
+        .getPublicUrl(filePath);
+
+      imageUrl = publicUrlData.publicUrl;
+    }
+    
+    // HILANGKAN TITIK SAAT SIMPAN KE DATABASE
+    const cleanPrice = parseInt(form.price.replace(/\./g, ''));
+
+    const { error } = await supabase.from('rooms').insert([{
+      number: form.number,
+      type: form.type,
+      price: cleanPrice, // Simpan sebagai angka murni
+      status: "Available",
+      image_url: imageUrl, 
+      rating: 5.0, 
+      size: "15 m²",
+      floor: 1,
+      description: "Fasilitas: " + form.facilities.join(", ")
     }]);
-    setForm({ number: "", type: "", price: "", facilities: [], image: null });
-    setShowModal(false);
+
+    setIsUploading(false);
+
+    if (!error) {
+      fetchRooms(); 
+      setForm({ number: "", type: "", price: "", facilities: [], image: null });
+      setShowModal(false);
+    } else {
+      alert("Gagal menyimpan data kamar: " + error.message);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if(!confirm("Yakin ingin menghapus kamar ini?")) return;
+    const { error } = await supabase.from('rooms').delete().eq('id', id);
+    if (!error) fetchRooms();
   };
 
   return (
     <div className="space-y-4 md:space-y-5">
-      
-      {/* HEADER ACTION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-0">
         <p className="text-slate-500 text-xs md:text-sm">Total <span className="font-bold text-slate-700">{rooms.length}</span> kamar terdaftar</p>
         <button 
@@ -279,7 +347,6 @@ function RoomManagement() {
         </button>
       </div>
 
-      {/* TABEL DATA KAMAR */}
       <div className="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -300,7 +367,7 @@ function RoomManagement() {
                   <td className="px-4 md:px-5 py-3 md:py-4 whitespace-nowrap">
                     <div className="flex items-center gap-1 md:gap-2">
                       <button className="p-1.5 md:p-2 text-slate-400 hover:text-[#0D6E6E] hover:bg-[#0D6E6E]/10 rounded-lg transition-all"><Pencil size={14} className="md:w-4 md:h-4" /></button>
-                      <button onClick={() => setRooms(r => r.filter(x => x.id !== room.id))} className="p-1.5 md:p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} className="md:w-4 md:h-4" /></button>
+                      <button onClick={() => handleDelete(room.id)} className="p-1.5 md:p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} className="md:w-4 md:h-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -310,22 +377,15 @@ function RoomManagement() {
         </div>
       </div>
 
-      {/* MODAL TAMBAH KAMAR */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onClick={e => e.target === e.currentTarget && !isUploading && setShowModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] md:max-h-[85vh] animate-in zoom-in-95 duration-200">
-            
-            {/* Header Modal (Sticky) */}
             <div className="flex-shrink-0 flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 text-base sm:text-lg">Tambah Kamar Baru</h3>
-              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"><X size={18} /></button>
+              <button disabled={isUploading} onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-colors disabled:opacity-50"><X size={18} /></button>
             </div>
             
-            {/* Body Modal (Scrollable) */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 custom-scrollbar">
-              
-              {/* Drag & Drop Area */}
               <div
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
@@ -335,28 +395,33 @@ function RoomManagement() {
               >
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setForm(p => ({ ...p, image: f })); }} />
                 <Cloud size={28} className="text-slate-300 mx-auto mb-2 sm:mb-3 sm:w-8 sm:h-8" />
-                <p className="text-slate-600 text-xs sm:text-sm font-medium px-2 truncate">{form.image ? form.image.name : "Seret & lepas foto kamar di sini"}</p>
-                <p className="text-slate-400 text-[10px] sm:text-xs mt-1">atau klik untuk menelusuri file</p>
+                <p className="text-slate-800 text-xs sm:text-sm font-medium px-2 truncate">{form.image ? form.image.name : "Seret & lepas foto kamar di sini"}</p>
+                <p className="text-slate-500 text-[10px] sm:text-xs mt-1">atau klik untuk menelusuri file</p>
               </div>
 
-              {/* Form Input: 1 kolom di HP, 2 Kolom di Tablet/Desktop */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-[10px] sm:text-xs font-semibold text-slate-600 mb-1.5">Nomor Kamar *</label>
-                  <input value={form.number} onChange={e => setForm(p => ({ ...p, number: e.target.value }))} placeholder="contoh: 101" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0D6E6E]/30 focus:border-[#0D6E6E] transition-shadow" />
+                  <input value={form.number} onChange={e => setForm(p => ({ ...p, number: e.target.value }))} placeholder="contoh: 101" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0D6E6E]/30 focus:border-[#0D6E6E] transition-shadow" />
                 </div>
                 <div>
                   <label className="block text-[10px] sm:text-xs font-semibold text-slate-600 mb-1.5">Harga Bulanan (Rp) *</label>
-                  <input type="number" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="contoh: 1200000" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0D6E6E]/30 focus:border-[#0D6E6E] transition-shadow" />
+                  {/* UBAH TYPE JADI "text" DAN GUNAKAN handlePriceChange */}
+                  <input 
+                    type="text" 
+                    value={form.price} 
+                    onChange={handlePriceChange} 
+                    placeholder="contoh: 1.200.000" 
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0D6E6E]/30 focus:border-[#0D6E6E] transition-shadow" 
+                  />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[10px] sm:text-xs font-semibold text-slate-600 mb-1.5">Tipe Kamar *</label>
-                <input value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} placeholder="contoh: Deluxe Double Room" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0D6E6E]/30 focus:border-[#0D6E6E] transition-shadow" />
+                <input value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} placeholder="contoh: Deluxe Double Room" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0D6E6E]/30 focus:border-[#0D6E6E] transition-shadow" />
               </div>
 
-              {/* Fasilitas: 1 Kolom di HP, 2 Kolom di Desktop */}
               <div>
                 <label className="block text-[10px] sm:text-xs font-semibold text-slate-600 mb-2 sm:mb-3">Fasilitas Kamar</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -370,15 +435,14 @@ function RoomManagement() {
                   ))}
                 </div>
               </div>
-
             </div>
             
-            {/* Footer Modal (Sticky) */}
             <div className="flex-shrink-0 flex gap-3 p-4 sm:p-6 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-              <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs sm:text-sm font-semibold hover:bg-slate-50 hover:text-slate-800 transition-colors shadow-sm">Batal</button>
-              <button onClick={handleSave} className="flex-1 px-4 py-2.5 bg-[#0D6E6E] text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#0a5858] transition-colors shadow-sm shadow-[#0D6E6E]/20">Simpan Kamar</button>
+              <button disabled={isUploading} onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs sm:text-sm font-semibold hover:bg-slate-50 hover:text-slate-800 transition-colors shadow-sm disabled:opacity-50">Batal</button>
+              <button disabled={isUploading} onClick={handleSave} className="flex-1 px-4 py-2.5 bg-[#0D6E6E] text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#0a5858] transition-colors shadow-sm shadow-[#0D6E6E]/20 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {isUploading ? <><Activity size={16} className="animate-spin" /> Menyimpan...</> : "Simpan Kamar"}
+              </button>
             </div>
-            
           </div>
         </div>
       )}
@@ -388,21 +452,62 @@ function RoomManagement() {
 
 // ─── SUB-VIEW: TENANT MANAGEMENT ──────────────────────────────────────────────
 function TenantManagement() {
-  const [tenants, setTenants] = useState<Tenant[]>(TENANTS);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", room: "", checkin: "", status: "Paid", phone: "" });
 
-  const handleAdd = () => {
+  const fetchTenants = async () => {
+    const { data, error } = await supabase.from('tenants').select('*').order('created_at', { ascending: false });
+    if (data) {
+      setTenants(data.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        room: t.room_number,
+        checkin: t.check_in_date,
+        status: t.payment_status,
+        phone: t.phone
+      })));
+    }
+  };
+
+  useEffect(() => {
+    fetchTenants();
+  }, []);
+
+  const handleAdd = async () => {
     if (!form.name || !form.room) return;
-    setTenants(t => [...t, { id: t.length + 1, ...form }]);
-    setForm({ name: "", room: "", checkin: "", status: "Paid", phone: "" });
-    setShowForm(false);
+    
+    const { error } = await supabase.from('tenants').insert([{
+      name: form.name,
+      room_number: form.room,
+      check_in_date: form.checkin || null,
+      payment_status: form.status,
+      phone: form.phone
+    }]);
+
+    if (!error) {
+      fetchTenants();
+      setForm({ name: "", room: "", checkin: "", status: "Paid", phone: "" });
+      setShowForm(false);
+    } else {
+      alert("Gagal menambahkan penghuni: " + error.message);
+    }
+  };
+
+  const handleTogglePayment = async (tenant: Tenant) => {
+    const newStatus = tenant.status === "Paid" ? "Pending" : "Paid";
+    const { error } = await supabase.from('tenants').update({ payment_status: newStatus }).eq('id', tenant.id);
+    if (!error) fetchTenants();
+  };
+
+  const handleDelete = async (id: number) => {
+    if(!confirm("Yakin ingin menghapus data penghuni ini?")) return;
+    const { error } = await supabase.from('tenants').delete().eq('id', id);
+    if (!error) fetchTenants();
   };
 
   return (
     <div className="space-y-4 md:space-y-5">
-      
-      {/* HEADER ACTION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-0">
         <p className="text-slate-500 text-xs md:text-sm"><span className="font-bold text-slate-700">{tenants.length}</span> penghuni aktif</p>
         <button 
@@ -413,7 +518,6 @@ function TenantManagement() {
         </button>
       </div>
 
-      {/* FORM TAMBAH PENGHUNI (Muncul kalau ditekan) */}
       {showForm && (
         <div className="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6 animate-in slide-in-from-top-2 duration-200 fade-in">
           <h3 className="font-bold text-slate-800 mb-4 md:mb-5 text-sm md:text-base">Informasi Penghuni Baru</h3>
@@ -469,7 +573,6 @@ function TenantManagement() {
         </div>
       )}
 
-      {/* TABEL DATA PENGHUNI */}
       <div className="bg-white rounded-xl md:rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -486,7 +589,7 @@ function TenantManagement() {
                   <td className="px-4 md:px-5 py-3 md:py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2 md:gap-3">
                       <div className="w-6 h-6 md:w-8 md:h-8 bg-[#0D6E6E]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-[#0D6E6E] text-[10px] md:text-xs font-bold">{t.name[0]}</span>
+                        <span className="text-[#0D6E6E] text-[10px] md:text-xs font-bold">{t.name ? t.name[0] : "-"}</span>
                       </div>
                       <span className="font-semibold text-slate-800 text-xs md:text-sm">{t.name}</span>
                     </div>
@@ -498,21 +601,21 @@ function TenantManagement() {
                   <td className="px-4 md:px-5 py-3 md:py-4 text-slate-500 whitespace-nowrap">
                     <div className="flex items-center gap-1.5 text-xs md:text-sm">
                       <Calendar size={13} className="text-slate-400" />
-                      {t.checkin}
+                      {t.checkin || "-"}
                     </div>
                   </td>
                   <td className="px-4 md:px-5 py-3 md:py-4 whitespace-nowrap"><StatusBadge status={t.status} /></td>
                   <td className="px-4 md:px-5 py-3 md:py-4 whitespace-nowrap">
                     <div className="flex items-center gap-1 md:gap-2">
                       <button
-                        onClick={() => setTenants(p => p.map(x => (x.id === t.id ? { ...x, status: x.status === "Paid" ? "Pending" : "Paid" } : x)))}
+                        onClick={() => handleTogglePayment(t)}
                         className="p-1.5 md:p-2 text-slate-400 hover:text-[#0D6E6E] hover:bg-[#0D6E6E]/10 rounded-lg transition-all"
                         title="Ubah status pembayaran"
                       >
                         <CreditCard size={14} className="md:w-4 md:h-4" />
                       </button>
                       <button
-                        onClick={() => setTenants(p => p.filter(x => x.id !== t.id))}
+                        onClick={() => handleDelete(t.id)}
                         className="p-1.5 md:p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
                         title="Hapus penghuni"
                       >
@@ -526,7 +629,6 @@ function TenantManagement() {
           </table>
         </div>
       </div>
-
     </div>
   );
 }
